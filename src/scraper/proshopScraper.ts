@@ -1,4 +1,4 @@
-import puppeteer, { Browser, ElementHandle, GoToOptions, LaunchOptions, Page } from "puppeteer";
+import puppeteer, { Browser, GoToOptions, LaunchOptions, Page } from "puppeteer";
 import { BaseScraper } from "./baseScraper";
 
 export class ProshopScraper {
@@ -16,6 +16,8 @@ export class ProshopScraper {
 
     // Set useragent since it's possible that if these are missing, the page won't load in headless mode
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+    
+    // Set viewport to ensure that certain elements appear because of media queries
     await page.setViewport({
       width: 1280,
       height: 720,
@@ -34,9 +36,8 @@ export class ProshopScraper {
   }
 
   public async login(username: string, password: string, realname: string) {
-    console.log(username, password);
-    // Make sure login button is visible on the page
     try {
+      // Make sure login button is visible on the page
       await this.page.waitForSelector("#openLogin");
 
       // Open the login dialog
