@@ -1,9 +1,15 @@
 import fs from "fs/promises";
 import path from "path";
+import dotenv from "dotenv";
 import { SkuData, SKUResponseData } from "./types/sku";
 import { openPage, startBrowser } from "./scraper";
 import { Browser, LaunchOptions } from "puppeteer";
 import { ProshopScraper } from "./scraper";
+
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
+
+const proshopUsername = process.env.PROSHOP_USERNAME || "test-username";
+const proshopPassword = process.env.PROSHOP_PASSWORD || "test-password";
 
 const dataPath = path.join(__dirname, "data", "skuData.json");
 
@@ -100,9 +106,11 @@ async function testPuppeteer() {
   // await browser.close();
   // console.log(title);
   // return { title };
-  const proshopSraper = await ProshopScraper.create({ headless: true });
+  console.log("why", proshopUsername, proshopPassword);
+  const proshopSraper = await ProshopScraper.create({ headless: false }, { waitUntil: "domcontentloaded" });
   
-  console.log(await proshopSraper.getElementText("https://www.proshop.fi/"));
+  proshopSraper.login("test-username", "test-password");
+  // console.log(await proshopSraper.getElementText("https://www.proshop.fi/"));
 };
 
 // First run

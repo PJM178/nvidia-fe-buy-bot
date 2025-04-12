@@ -1,24 +1,49 @@
-import puppeteer, { Browser, ElementHandle, LaunchOptions, Page } from "puppeteer";
+import puppeteer, { Browser, ElementHandle, GoToOptions, LaunchOptions, Page } from "puppeteer";
 import { BaseScraper } from "./baseScraper";
 
 export class ProshopScraper {
   private browser: Browser;
   private activePage: Page;
 
-  private constructor(browser: Browser) {
+  private constructor(browser: Browser, page: Page) {
     this.browser = browser;
+    this.activePage = page;
   }
 
-  static async create(options: LaunchOptions) {
+  static async create(options: LaunchOptions, pageOptions: GoToOptions) {
     const browser = await puppeteer.launch(options);
+    const page = await browser.newPage();
 
-    return new this(browser);
+    // Set useragent since it's possible that if these are missing, the page won't load in headless mode
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+
+    // By default go to proshop url - testing some product url here
+    await page.goto("https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900", pageOptions)
+
+    // Take care of GDPR consent so that it won't bother us on subsequent page visits
+    await page.waitForSelector("#search-input");
+    await page.click("#search-input");
+    await page.waitForSelector("#declineButton");
+    await page.click("#declineButton");
+
+    return new this(browser, page);
+  }
+
+  public async login(username: string, password: string) {
+    console.log(username, password);
+    // Make sure login button is visible on the page
+    await this.activePage.waitForSelector("#openLogin");
+
+    // Open the login dialog
+    await this.activePage.click("#openLogin");
+
+    console.log("here");
   }
 
   public async setPage() {
     const page = await this.browser.newPage();
 
-    return new this(page);
+    return this.activePage = page;
   }
 
   public async getElementText(url: string) {
