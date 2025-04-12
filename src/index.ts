@@ -10,6 +10,7 @@ dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const proshopUsername = process.env.PROSHOP_USERNAME || "test-username";
 const proshopPassword = process.env.PROSHOP_PASSWORD || "test-password";
+const proshopRealname = process.env.PROSHOP_REALNAME || "test-realname";
 
 const dataPath = path.join(__dirname, "data", "skuData.json");
 
@@ -109,8 +110,11 @@ async function testPuppeteer() {
   const proshopSraper = await ProshopScraper.create({ headless: false }, { waitUntil: "domcontentloaded" });
   
   // Return true if succesfully logged in
-  const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword);
+  const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
   console.log(isLoggedIn);
+  if (isLoggedIn) {
+    await proshopSraper.addProductToCart("jorma");
+  }
   // console.log(await proshopSraper.getElementText("https://www.proshop.fi/"));
 };
 
