@@ -5,6 +5,7 @@ import { SkuData, SKUResponseData } from "./types/sku";
 import { openPage, startBrowser } from "./scraper";
 import { Browser, LaunchOptions } from "puppeteer";
 import { ProshopScraper } from "./scraper";
+import { exec } from 'child_process';
 
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
@@ -107,7 +108,7 @@ async function testPuppeteer() {
   // await browser.close();
   // console.log(title);
   // return { title };
-  const proshopSraper = await ProshopScraper.create({ headless: false }, { waitUntil: "domcontentloaded" });
+  const proshopSraper = await ProshopScraper.create({ headless: true }, { waitUntil: "domcontentloaded" });
   
   // Return true if succesfully logged in
   const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
@@ -115,6 +116,17 @@ async function testPuppeteer() {
   if (isLoggedIn) {
     await proshopSraper.addProductToCart("jorma");
   }
+
+  // Open default browser - works for sure using Windows, Linux and others not confirmed
+  // exec('start chrome https://www.proshop.fi', (err: any, stdout: any, stderr: any) => {
+  //   if (err) {
+  //     console.error('Error opening browser:', err);
+  //     return;
+  //   }
+  //   console.log('Browser opened');
+  // });
+
+  return process.exit(1);
   // console.log(await proshopSraper.getElementText("https://www.proshop.fi/"));
 };
 
