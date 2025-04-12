@@ -106,10 +106,11 @@ async function testPuppeteer() {
   // await browser.close();
   // console.log(title);
   // return { title };
-  console.log("why", proshopUsername, proshopPassword);
   const proshopSraper = await ProshopScraper.create({ headless: false }, { waitUntil: "domcontentloaded" });
   
-  proshopSraper.login("test-username", "test-password");
+  // Return true if succesfully logged in
+  const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword);
+  console.log(isLoggedIn);
   // console.log(await proshopSraper.getElementText("https://www.proshop.fi/"));
 };
 

@@ -3,11 +3,11 @@ import { BaseScraper } from "./baseScraper";
 
 export class ProshopScraper {
   private browser: Browser;
-  private activePage: Page;
+  private page: Page;
 
   private constructor(browser: Browser, page: Page) {
     this.browser = browser;
-    this.activePage = page;
+    this.page = page;
   }
 
   static async create(options: LaunchOptions, pageOptions: GoToOptions) {
@@ -32,18 +32,54 @@ export class ProshopScraper {
   public async login(username: string, password: string) {
     console.log(username, password);
     // Make sure login button is visible on the page
-    await this.activePage.waitForSelector("#openLogin");
+    try {
+      await this.page.waitForSelector("#openLogin");
 
-    // Open the login dialog
-    await this.activePage.click("#openLogin");
+      // Open the login dialog
+      await this.page.click("#openLogin");
+  
+      // Wait for username field
+      await this.page.waitForSelector("input#UserName.form-control");
+  
+      // Insert username into the input field
+      await this.page.evaluate((text) => {
+        const inputElement = document.querySelector("input#UserName.form-control") as HTMLInputElement;
+  
+        inputElement.value = text;
+      }, username);
+  
+      // Wait for password field
+      await this.page.waitForSelector("input#Password.form-control");
+  
+      // Insert password into the input field
+      await this.page.evaluate((text) => {
+        const inputElement = document.querySelector("input#Password.form-control") as HTMLInputElement;
+  
+        inputElement.value = text;
+      }, password);
+  
+      // Check for remember me input element
+      await this.page.waitForSelector("input#RememberMe");
+  
+      // Check the remember me checkbox
+      await this.page.click("input#RememberMe");
+  
+      // Check for submit button
+      await this.page.waitForSelector("form#LoginDropDownForm input[type='submit']");
+  
+      // Click the submit button
+      await this.page.click("form#LoginDropDownForm input[type='submit']");
 
-    console.log("here");
+      return true;
+    } catch (err) {
+      return false;
+    }
   }
 
   public async setPage() {
     const page = await this.browser.newPage();
 
-    return this.activePage = page;
+    return this.page = page;
   }
 
   public async getElementText(url: string) {
@@ -69,7 +105,7 @@ export class ProshopScraper {
 
     await page.evaluate(() => {
       const button = document.querySelector(".login-modal--close");
-      
+
       if (button) {
         (button as HTMLButtonElement).click();
       }
