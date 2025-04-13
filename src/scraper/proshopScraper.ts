@@ -109,14 +109,14 @@ export class ProshopScraper {
       // If the textContent contains the real name of the user, consider the user logged in
       // Otherwise return false
       if (text?.includes(realname)) {
-        console.log(`Found user ${realname} on the page.`)
+        console.log(`Logged in and found user ${realname} on the page.`)
 
         return true;
       } else {
         return false;
       }
     } catch (err) {
-      console.log("Something went wrong trying to in the user: ", err);
+      console.log("Something went wrong trying to login the user: ", err);
 
       return false;
     }
