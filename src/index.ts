@@ -6,6 +6,7 @@ import { openPage, startBrowser } from "./scraper";
 import { Browser, LaunchOptions } from "puppeteer";
 import { ProshopScraper } from "./scraper";
 import { exec } from 'child_process';
+import { queryUser, envValues } from "./util/utilities";
 
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
@@ -99,25 +100,33 @@ async function run() {
   }
 }
 
-async function testPuppeteer() {
-  // const browser = await startBrowser();
-  // const page = await openPage(browser, "https://www.twitch.tv/steelmage");
+async function initializeSetup(): Promise<{ headless: boolean }> {
+  const runInHeadless = await queryUser("Run chrome in headless mode?\n");
 
-  // const title = await page.title();
+  const createEnvFile = await queryUser("Create .env file and write credentials to it?\n");
 
-  // await browser.close();
-  // console.log(title);
-  // return { title };
-  const proshopSraper = await ProshopScraper.create({ headless: true }, { waitUntil: "domcontentloaded" });
-  
-  // Return true if succesfully logged in
-  const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
-  console.log(isLoggedIn);
-  if (isLoggedIn) {
-    await proshopSraper.addProductToCart("jorma");
+  if (createEnvFile) {
+    await envValues("Input proshop credentials to store them into the .env file\n");
   }
 
-  // Open default browser - works for sure using Windows, Linux and others not confirmed
+  return { headless: runInHeadless };
+}
+
+async function testPuppeteer() {
+  // Setup values and create .env variables
+  const setupValues = await initializeSetup();
+
+  // Create the scraper
+  const proshopSraper = await ProshopScraper.create({ ...setupValues }, { waitUntil: "domcontentloaded" });
+  
+  // Returns true if succesfully logged in
+  const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
+
+  if (isLoggedIn) {
+    await proshopSraper.addProductToCart("https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900", { waitUntil: "networkidle2" });
+  }
+
+  // Open default browser - tested to work in Windows
   // exec('start chrome https://www.proshop.fi', (err: any, stdout: any, stderr: any) => {
   //   if (err) {
   //     console.error('Error opening browser:', err);
