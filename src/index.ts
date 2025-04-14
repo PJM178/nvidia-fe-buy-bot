@@ -104,7 +104,6 @@ async function initializeSetup(): Promise<{ headless: boolean }> {
   const createEnvFile = await queryUser("Create .env file and write credentials to it?\n");
 
   if (createEnvFile) {
-    console.log("Input proshop credentials to store them into the .env file");
     await envValues();
   }
 
@@ -126,6 +125,7 @@ async function testPuppeteer() {
     const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
 
     if (isLoggedIn) {
+
       // Add product to basket based on the url - networkidle0 to make sure there is no network requests going on after loading
       const productAddedToCart = await proshopSraper.addProductToCart("https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900", { waitUntil: "networkidle0" });
 
@@ -149,9 +149,11 @@ async function testPuppeteer() {
 };
 
 // First run
-// run();
+run();
 
-testPuppeteer();
+checkApi();
+
+// testPuppeteer();
 
 // Keep the program running;
 // setInterval(() => {

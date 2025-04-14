@@ -1,6 +1,20 @@
 {
+  "RTX 5090": {
+    "displayName": "NVIDIA RTX 5090",
+    "productTitle": "NVIDIA GeForce RTX 5090",
+    "gpu": "RTX 5090",
+    "productSKU": "PROFESHOP5090"
+  },
   "RTX 5080": {
     "displayName": "NVIDIA RTX 5080",
+    "productTitle": "NVIDIA GeForce RTX 5080",
+    "gpu": "RTX 5080",
     "productSKU": "PRO5080FESHOP"
+  },
+  "RTX 5070": {
+    "displayName": "NVIDIA RTX 5070",
+    "productTitle": "NVIDIA GeForce RTX 5070",
+    "gpu": "RTX 5070",
+    "productSKU": "PRONVGFT570SHOP"
   }
 }
