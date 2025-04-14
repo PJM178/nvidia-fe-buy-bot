@@ -2,66 +2,32 @@ import puppeteer, { Browser, GoToOptions, LaunchOptions, Page } from "puppeteer"
 import { BaseScraper } from "./baseScraper";
 
 export class ProshopScraper extends BaseScraper {
-  // private browser: Browser;
-  // private page: Page;
-
-  // private constructor(browser: Browser, page: Page) {
-  //   this.browser = browser;
-  //   this.page = page;
-  // }
-
-  // /**
-  // * Creates and initializes an instance of the class with a configured Puppeteer browser and page.
-  // *
-  // * This method launches a new, possibly headless browser using the provided `LaunchOptions`, sets up
-  // * the page with a custom user agent and viewport, and navigates to the Proshop homepage.
-  // * It also handles GDPR consent popups to avoid interaction issues on future page visits.
-  // *
-  // * @param options - Puppeteer `LaunchOptions` used to configure the browser launch (e.g., headless mode, args).
-  // * @param pageOptions - Puppeteer `GoToOptions` used for navigating to the initial page.
-  // * 
-  // * @returns A promise that resolves to an instance of the class containing the initialized browser and page.
-  // */
-  // static async create(options: LaunchOptions, pageOptions: GoToOptions) {
-  //   let browser: Browser | null = null;
-
-  //   try {
-  //     browser = await puppeteer.launch(options);
-  //     const page = await browser.newPage();
-
-  //     // Set useragent since it's possible that if these are missing, the page won't load in headless mode
-  //     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-
-  //     // Set viewport to ensure that certain elements appear because of media queries
-  //     await page.setViewport({
-  //       width: 1280,
-  //       height: 720,
-  //     });
-
-  //     // By default go to proshop url
-  //     await page.goto("https://www.proshop.fi", pageOptions)
-
-  //     // Take care of GDPR consent so that it won't bother us on subsequent page visits and potentially blockin interaction
-  //     await page.waitForSelector("#search-input");
-  //     await page.click("#search-input");
-  //     await page.waitForSelector("#declineButton");
-  //     await page.click("#declineButton");
-
-  //     return new this(browser, page);
-  //   } catch (err) {
-  //     console.log(err);
-
-  //     if (browser) {
-  //       await browser.close();
-  //     }
-
-  //     throw err;
-  //   }
-  // }
-
+   /**
+  * Click element on the page to trigger effects, in this case GDPR cookie popup happens so take care of it before
+  * other interactions. Should be the first thing to run after creating the class instance.
+  * 
+  * @returns Promise<void>
+  */
   public async firstContact() {
+    try {
+      // Wait for search input field on the page
+      await this.page.waitForSelector("#search-input");
 
-  } 
+      // Click to focus the search box to trigger the modal if it hasn't happened already
+      await this.page.click("#search-input");
+
+      // Wait for decline button to appear on the page
+      await this.page.waitForSelector("#declineButton");
+
+      // Click the decline button to close the modal
+      await this.page.click("#declineButton");
+    } catch (err) {
+      console.log(err);
+
+      // Throw err to maybe handle it in outer try catch block
+      throw err;
+    }
+  }
 
   /**
   * Attempts to login the user with the provided cerendtials as parameters.
@@ -145,22 +111,53 @@ export class ProshopScraper extends BaseScraper {
   * @param url - The proshop product page URL to navigate to.
   * @param options - Optional Puppeteer `GoToOptions` for navigation behavior.
   * 
-  * @returns void
+  * @returns Promise<{ succcess: boolean, product: string }>
   */
-  public async addProductToCart(url: string, options: GoToOptions): Promise<boolean> {
+  public async addProductToCart(url: string, options: GoToOptions): Promise<{ success: boolean, product: string }> {
     try {
       // Go to the url - should come from Nvidia sku api
       await this.page.goto(url, options);
-      console.log(this.page.url());
+
       // TODO: it's not clear whether simply visiting the url adds the card to the cart
-      // so do some checks if there is the add to basket button on page but if there is
+      // so do some checks if there is the add to basket button on the page but if there is
       // not proceed with the program just the same. The card should be reserved in any case
 
-      return true;
+      // Check to see if the page is the shopping cart, which indicates that the product has been added to the cart
+      // and hopefully reserved
+      let pageUrl = this.page.url().toLowerCase();
+      let cartElement = await this.page.$(("#CommerceBasketApp"));
+      let buyButton = await this.page.$("a[href='/Basket/CheckOut']");
+
+      // If the page is basket using multiple checks, since it's possible that the url doesn't include basket, return
+      // Else proceed with adding the product to the basket
+      if (pageUrl.includes("basket") || cartElement || buyButton) {
+        return { success: true, product: url.split("/")[4] ?? url };
+      }
+
+      // Wait for buy button to appear on the site - 5000ms till timeout
+      await this.page.waitForSelector("form#addToCart_BtnForm button[data-form-action='addToBasket']", { timeout: 5000 });
+
+      // Click the buy button
+      await this.page.click("form#addToCart_BtnForm button[data-form-action='addToBasket']");
+
+      // Navigation event happens to /basket page after clicking the buy button so wait for it to finish
+      await this.page.waitForNavigation({ waitUntil: "networkidle2" });
+
+      // Check to see if the page is the shopping cart, which indicates that the product has been added to the cart
+      // and hopefully reserved
+      pageUrl = this.page.url().toLowerCase();
+      cartElement = await this.page.$(("#CommerceBasketApp"));
+      buyButton = await this.page.$("a[href='/Basket/CheckOut']");
+
+      if (pageUrl.includes("basket") || cartElement || buyButton) {
+        return { success: true, product: url.split("/")[4] ?? url };
+      } else {
+        return { success: false, product: url.split("/")[4] ?? url };
+      }
     } catch (err) {
       console.log("Something went wrong trying to add the product to the cart: ", err)
 
-      return false;
+      return { success: false, product: url.split("/")[4] ?? url };
     }
   }
 }

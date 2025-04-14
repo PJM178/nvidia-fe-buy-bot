@@ -99,16 +99,16 @@ async function run() {
 }
 
 async function initializeSetup(): Promise<{ headless: boolean }> {
-  // const runInHeadless = await queryUser("Run chrome in headless mode?\n");
+  const runInHeadless = await queryUser("Run chrome in headless mode?\n");
 
-  // const createEnvFile = await queryUser("Create .env file and write credentials to it?\n");
+  const createEnvFile = await queryUser("Create .env file and write credentials to it?\n");
 
-  // if (createEnvFile) {
-  //   console.log("Input proshop credentials to store them into the .env file");
-  //   await envValues();
-  // }
+  if (createEnvFile) {
+    console.log("Input proshop credentials to store them into the .env file");
+    await envValues();
+  }
 
-  return { headless: false };
+  return { headless: runInHeadless };
 }
 
 async function testPuppeteer() {
@@ -119,26 +119,33 @@ async function testPuppeteer() {
   const proshopSraper = await ProshopScraper.create({ ...setupValues }, { waitUntil: "domcontentloaded" }, "https://www.proshop.fi");
 
   if (proshopSraper) {
-    proshopSraper.firstContact();
-    // Returns true if succesfully logged in
+    // Run the first contact method to get rid of potentially blocking stuff
+    await proshopSraper.firstContact();
+
+    // Login to the site
     const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
 
     if (isLoggedIn) {
+      // Add product to basket based on the url - networkidle0 to make sure there is no network requests going on after loading
       const productAddedToCart = await proshopSraper.addProductToCart("https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900", { waitUntil: "networkidle0" });
-      console.log(productAddedToCart);
+
+      // If the product is added to cart, open default system browser with shopping cart url for checkout and exit the program
+      if (productAddedToCart.success) {
+        console.log("added to card", productAddedToCart.product);
+
+        // Open default browser with proshop cart link in order to checkout
+        exec('start https://www.proshop.fi/Basket', (err: any, stdout: any, stderr: any) => {
+          if (err) {
+            console.error('Error opening browser:', err);
+            return;
+          }
+          console.log('Browser opened');
+        });
+
+        return process.exit(1);
+      }
     }
   }
-  // Open default browser - tested to work in Windows
-  // exec('start chrome https://www.proshop.fi', (err: any, stdout: any, stderr: any) => {
-  //   if (err) {
-  //     console.error('Error opening browser:', err);
-  //     return;
-  //   }
-  //   console.log('Browser opened');
-  // });
-
-  // return process.exit(1);
-  // console.log(await proshopSraper.getElementText("https://www.proshop.fi/"));
 };
 
 // First run
