@@ -2,8 +2,6 @@ import fs from "fs/promises";
 import path from "path";
 import dotenv from "dotenv";
 import { SkuData, SKUResponseData } from "./types/sku";
-import { openPage, startBrowser } from "./scraper";
-import { Browser, LaunchOptions } from "puppeteer";
 import { ProshopScraper } from "./scraper";
 import { exec } from 'child_process';
 import { queryUser, envValues } from "./util/utilities";
@@ -101,15 +99,16 @@ async function run() {
 }
 
 async function initializeSetup(): Promise<{ headless: boolean }> {
-  const runInHeadless = await queryUser("Run chrome in headless mode?\n");
+  // const runInHeadless = await queryUser("Run chrome in headless mode?\n");
 
-  const createEnvFile = await queryUser("Create .env file and write credentials to it?\n");
+  // const createEnvFile = await queryUser("Create .env file and write credentials to it?\n");
 
-  if (createEnvFile) {
-    await envValues("Input proshop credentials to store them into the .env file\n");
-  }
+  // if (createEnvFile) {
+  //   console.log("Input proshop credentials to store them into the .env file");
+  //   await envValues();
+  // }
 
-  return { headless: runInHeadless };
+  return { headless: false };
 }
 
 async function testPuppeteer() {
@@ -117,15 +116,18 @@ async function testPuppeteer() {
   const setupValues = await initializeSetup();
 
   // Create the scraper
-  const proshopSraper = await ProshopScraper.create({ ...setupValues }, { waitUntil: "domcontentloaded" });
-  
-  // Returns true if succesfully logged in
-  const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
+  const proshopSraper = await ProshopScraper.create({ ...setupValues }, { waitUntil: "domcontentloaded" }, "https://www.proshop.fi");
 
-  if (isLoggedIn) {
-    await proshopSraper.addProductToCart("https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900", { waitUntil: "networkidle2" });
+  if (proshopSraper) {
+    proshopSraper.firstContact();
+    // Returns true if succesfully logged in
+    const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
+
+    if (isLoggedIn) {
+      const productAddedToCart = await proshopSraper.addProductToCart("https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900", { waitUntil: "networkidle0" });
+      console.log(productAddedToCart);
+    }
   }
-
   // Open default browser - tested to work in Windows
   // exec('start chrome https://www.proshop.fi', (err: any, stdout: any, stderr: any) => {
   //   if (err) {
@@ -135,7 +137,7 @@ async function testPuppeteer() {
   //   console.log('Browser opened');
   // });
 
-  return process.exit(1);
+  // return process.exit(1);
   // console.log(await proshopSraper.getElementText("https://www.proshop.fi/"));
 };
 

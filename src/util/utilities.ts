@@ -32,7 +32,7 @@ export async function queryUser(query: string): Promise<boolean> {
   });
 }
 
-export async function envValues(query: string) {
+export async function envValues() {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,

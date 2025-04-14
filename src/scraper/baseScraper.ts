@@ -1,40 +1,77 @@
 import puppeteer, { Browser, GoToOptions, LaunchOptions, Page } from 'puppeteer';
 
-export const startBrowser = async (): Promise<Browser> => {
-  return await puppeteer.launch({ headless: true });
-};
-
-export const openPage = async (browser: Browser, url: string): Promise<Page> => {
-  const page = await browser.newPage();
-
-  await page.goto(url);
-
-  return page;
-};
-
 export abstract class BaseScraper {
   protected browser: Browser;
-  protected text = "jorma";
+  protected page: Page;
 
-  protected constructor(browser: Browser) {
+  public constructor(browser: Browser, page: Page) {
     this.browser = browser;
+    this.page = page;
   }
 
-  static async create<T extends BaseScraper>(this: new (browser: Browser) => T, options: LaunchOptions): Promise<T> {
-    const browser = await puppeteer.launch(options);
+  /**
+  * Creates and initializes an instance of the class with a configured Puppeteer browser and page.
+  *
+  * This method launches a new, possibly headless browser using the provided `LaunchOptions`, sets up
+  * the page with a custom user agent and viewport, and navigates to the Proshop homepage.
+  * It also handles GDPR consent popups to avoid interaction issues on future page visits.
+  *
+  * @param options - Puppeteer `LaunchOptions` used to configure the browser launch (e.g., headless mode, args).
+  * @param pageOptions - Puppeteer `GoToOptions` used for navigating to the initial page.
+  * 
+  * @returns A promise that resolves to an instance of the class containing the initialized browser and page.
+  */
+  public static async create<T extends BaseScraper>(
+    this: new (browser: Browser, page: Page) => T,
+    options: LaunchOptions,
+    pageOptions: GoToOptions,
+    url: string
+  ): Promise<T> {
+    let browser: Browser | null = null;
 
-    return new this(browser);
+    try {
+      browser = await puppeteer.launch(options);
+      const page = await browser.newPage();
+
+      // Set useragent since it's possible that if these are missing, the page won't load in headless mode
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+
+      // Set viewport to ensure that certain elements appear because of media queries
+      await page.setViewport({
+        width: 1280,
+        height: 720,
+      });
+
+      // By default go to proshop url
+      await page.goto(url, pageOptions)
+
+      return new this(browser, page);
+    } catch (err) {
+      console.log(err);
+
+      if (browser) {
+        await browser.close();
+      }
+
+      throw err;
+    }
   }
 
-  protected async newPage(url: string, options: GoToOptions): Promise<Page> {
-    const page = await this.browser.newPage();
-
-    await page.goto(url, options);
-
-    return page;
-  }
-
-  async close() {
+  /**
+  * Closes the current browser instance.
+  * 
+  * @returns Promise<void>.
+  */
+  public async closeBrowser() {
     await this.browser.close();
+  }
+
+  /**
+  * Closes the current page instance.
+  * 
+  * @returns Promise<void>.
+  */
+  public async closePage() {
+    await this.page.close();
   }
 }
