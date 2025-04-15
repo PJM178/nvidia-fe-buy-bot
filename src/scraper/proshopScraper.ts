@@ -105,6 +105,28 @@ export class ProshopScraper extends BaseScraper {
     }
   }
 
+  public async clickElementToAddToCart(selector: string, url: string) {
+    const splittedUrl = url.split("/");
+
+    // Click the buy button
+    await this.page.click(selector);
+
+    // Navigation event happens to /basket page after clicking the buy button so wait for it to finish
+    await this.page.waitForNavigation({ waitUntil: "networkidle2" });
+
+    // Check to see if the page is the shopping cart, which indicates that the product has been added to the cart
+    // and hopefully reserved
+    const pageUrl = this.page.url().toLowerCase();
+    const cartElement = await this.page.$(("#CommerceBasketApp"));
+    const buyButton = await this.page.$("a[href='/Basket/CheckOut']");
+
+    if (pageUrl.includes("basket") || cartElement || buyButton) {
+      return { success: true, product: splittedUrl[4] ?? url };
+    } else {
+      return { success: false, product: splittedUrl[4] ?? url };
+    }
+  }
+
   /**
   * Navigates to the specified proshop product URL and attempts to add the product 
   * associated with the page to the cart.
@@ -140,23 +162,30 @@ export class ProshopScraper extends BaseScraper {
       // Wait for buy button to appear on the site - 5000ms till timeout
       await this.page.waitForSelector("form#addToCart_BtnForm button[data-form-action='addToBasket']", { timeout: 5000 });
 
-      // Click the buy button
-      await this.page.click("form#addToCart_BtnForm button[data-form-action='addToBasket']");
+      // // Click the buy button
+      // await this.page.click("form#addToCart_BtnForm button[data-form-action='addToBasket']");
 
-      // Navigation event happens to /basket page after clicking the buy button so wait for it to finish
-      await this.page.waitForNavigation({ waitUntil: "networkidle2" });
+      // // Navigation event happens to /basket page after clicking the buy button so wait for it to finish
+      // await this.page.waitForNavigation({ waitUntil: "networkidle2" });
 
-      // Check to see if the page is the shopping cart, which indicates that the product has been added to the cart
-      // and hopefully reserved
-      pageUrl = this.page.url().toLowerCase();
-      cartElement = await this.page.$(("#CommerceBasketApp"));
-      buyButton = await this.page.$("a[href='/Basket/CheckOut']");
+      // // Check to see if the page is the shopping cart, which indicates that the product has been added to the cart
+      // // and hopefully reserved
+      // pageUrl = this.page.url().toLowerCase();
+      // cartElement = await this.page.$(("#CommerceBasketApp"));
+      // buyButton = await this.page.$("a[href='/Basket/CheckOut']");
 
-      if (pageUrl.includes("basket") || cartElement || buyButton) {
-        return { success: true, product: splittedUrl[4] ?? url };
-      } else {
-        return { success: false, product: splittedUrl[4] ?? url };
-      }
+      // if (pageUrl.includes("basket") || cartElement || buyButton) {
+      //   return { success: true, product: splittedUrl[4] ?? url };
+      // } else {
+      //   return { success: false, product: splittedUrl[4] ?? url };
+      // }
+
+      const addToCart = await this.clickElementToAddToCart(
+        "form#addToCart_BtnForm button[data-form-action='addToBasket']",
+        url
+      );
+
+      return addToCart;
     } catch (err) {
       console.log("Something went wrong trying to add the product to the cart: ", err)
 
@@ -179,36 +208,25 @@ export class ProshopScraper extends BaseScraper {
 
       while (!isAvailable) {
         await this.page.reload({ waitUntil: "domcontentloaded" });
-  
+
         try {
           await this.page.waitForSelector("form#addToCart_BtnForm button[data-form-action='addToBasket']", { timeout: 200 });
-  
+
           isAvailable = true;
         } catch (err) {
           console.log("No buy button on page");
-  
+
           // Wait until refreshing the page
           await new Promise<void>((res) => setTimeout(res, 5000));
         }
       }
-  
-      // Click the buy button
-      await this.page.click("form#addToCart_BtnForm button[data-form-action='addToBasket']");
-  
-      // Navigation event happens to /basket page after clicking the buy button so wait for it to finish
-      await this.page.waitForNavigation({ waitUntil: "networkidle2" });
-  
-      // Check to see if the page is the shopping cart, which indicates that the product has been added to the cart
-      // and hopefully reserved
-      const pageUrl = this.page.url().toLowerCase();
-      const cartElement = await this.page.$(("#CommerceBasketApp"));
-      const buyButton = await this.page.$("a[href='/Basket/CheckOut']");
-  
-      if (pageUrl.includes("basket") || cartElement || buyButton) {
-        return { success: true, product: splittedUrl[4] ?? url };
-      } else {
-        return { success: false, product: splittedUrl[4] ?? url };
-      }
+
+      const addToCart = await this.clickElementToAddToCart(
+        "form#addToCart_BtnForm button[data-form-action='addToBasket']",
+        url
+      );
+
+      return addToCart;
     } catch (err) {
       return { success: false, product: splittedUrl[4] ?? url };
     }

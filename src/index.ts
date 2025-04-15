@@ -130,20 +130,20 @@ async function testPuppeteer() {
       const productAddedToCart = await proshopSraper.addProductToCart("https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900", { waitUntil: "networkidle0" });
 
       // If the product is added to cart, open default system browser with shopping cart url for checkout and exit the program
-      // if (productAddedToCart.success) {
-      //   console.log("added to cart", productAddedToCart.product);
+      if (productAddedToCart.success) {
+        console.log("added to cart", productAddedToCart.product);
 
-      //   // Open default browser with proshop cart link in order to checkout
-      //   exec('start https://www.proshop.fi/Basket', (err: any, stdout: any, stderr: any) => {
-      //     if (err) {
-      //       console.error('Error opening browser:', err);
-      //       return;
-      //     }
-      //     console.log('Browser opened');
-      //   });
+        // Open default browser with proshop cart link in order to checkout
+        exec('start https://www.proshop.fi/Basket', (err: any, stdout: any, stderr: any) => {
+          if (err) {
+            console.error('Error opening browser:', err);
+            return;
+          }
+          console.log('Browser opened');
+        });
 
-      //   return process.exit(1);
-      // }
+        return process.exit(1);
+      }
     }
   }
 };
@@ -168,8 +168,8 @@ async function testProductAvailabilityTime() {
     if (isLoggedIn) {
       const startTime = new Date().setUTCHours(14, 0, 0, 0);
 
-      const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeytoenohjaimet/ZOTAC-GeForce-RTX-5070-Ti-Solid-SFF-16GB-GDDR7-RAM-Naeytoenohjaimet/3359722");
-      // const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900");
+      // const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeytoenohjaimet/ZOTAC-GeForce-RTX-5070-Ti-Solid-SFF-16GB-GDDR7-RAM-Naeytoenohjaimet/3359722");
+      const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900");
 
       // If the product is added to cart, open default system browser with shopping cart url for checkout and exit the program
       if (productAddedToCart.success) {
