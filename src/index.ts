@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import { SkuData, SKUResponseData } from "./types/sku";
 import { ProshopScraper } from "./scraper";
 import { exec } from 'child_process';
-import { queryUser, envValues } from "./util/utilities";
+import { queryUser, envValues, getLocalTimeInUTCTimestamp } from "./util/utilities";
 
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
@@ -91,9 +91,9 @@ async function run() {
     if (skuResponseData?.success && skuResponseData?.listMap.length > 0) {
       console.log(skuResponseData.listMap[0].fe_sku);
     } else if (skuResponseData?.success) {
-      console.error("Api response successful but the sku data is missing");
+      console.log("Api response successful but the sku data is missing");
     } else {
-      console.error("Something went wrong making the api call");
+      console.log("Something went wrong making the api call");
     }
   }
 }
@@ -130,8 +130,50 @@ async function testPuppeteer() {
       const productAddedToCart = await proshopSraper.addProductToCart("https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900", { waitUntil: "networkidle0" });
 
       // If the product is added to cart, open default system browser with shopping cart url for checkout and exit the program
+      // if (productAddedToCart.success) {
+      //   console.log("added to cart", productAddedToCart.product);
+
+      //   // Open default browser with proshop cart link in order to checkout
+      //   exec('start https://www.proshop.fi/Basket', (err: any, stdout: any, stderr: any) => {
+      //     if (err) {
+      //       console.error('Error opening browser:', err);
+      //       return;
+      //     }
+      //     console.log('Browser opened');
+      //   });
+
+      //   return process.exit(1);
+      // }
+    }
+  }
+};
+
+// First run
+// run();
+
+// checkApi();
+
+// testPuppeteer();
+
+async function testProductAvailabilityTime() {
+  const proshopSraper = await ProshopScraper.create({ headless: false }, { waitUntil: "domcontentloaded" }, "https://www.proshop.fi");
+
+  if (proshopSraper) {
+    // Run the first contact method to get rid of potentially blocking stuff
+    await proshopSraper.firstContact();
+
+    // Login to the site
+    const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
+
+    if (isLoggedIn) {
+      const startTime = new Date().setUTCHours(14, 0, 0, 0);
+
+      const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeytoenohjaimet/ZOTAC-GeForce-RTX-5070-Ti-Solid-SFF-16GB-GDDR7-RAM-Naeytoenohjaimet/3359722");
+      // const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900");
+
+      // If the product is added to cart, open default system browser with shopping cart url for checkout and exit the program
       if (productAddedToCart.success) {
-        console.log("added to card", productAddedToCart.product);
+        console.log("added to cart", productAddedToCart.product);
 
         // Open default browser with proshop cart link in order to checkout
         exec('start https://www.proshop.fi/Basket', (err: any, stdout: any, stderr: any) => {
@@ -146,14 +188,9 @@ async function testPuppeteer() {
       }
     }
   }
-};
+}
 
-// First run
-run();
-
-checkApi();
-
-// testPuppeteer();
+testProductAvailabilityTime();
 
 // Keep the program running;
 // setInterval(() => {

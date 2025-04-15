@@ -1,8 +1,9 @@
 import puppeteer, { Browser, GoToOptions, LaunchOptions, Page } from "puppeteer";
 import { BaseScraper } from "./baseScraper";
+import { getLocalTimeInUTCTimestamp } from "../util/utilities";
 
 export class ProshopScraper extends BaseScraper {
-   /**
+  /**
   * Click element on the page to trigger effects, in this case GDPR cookie popup happens so take care of it before
   * other interactions. Should be the first thing to run after creating the class instance.
   * 
@@ -114,6 +115,8 @@ export class ProshopScraper extends BaseScraper {
   * @returns Promise<{ succcess: boolean, product: string }>
   */
   public async addProductToCart(url: string, options: GoToOptions): Promise<{ success: boolean, product: string }> {
+    const splittedUrl = url.split("/");
+
     try {
       // Go to the url - should come from Nvidia sku api
       await this.page.goto(url, options);
@@ -131,7 +134,7 @@ export class ProshopScraper extends BaseScraper {
       // If the page is basket using multiple checks, since it's possible that the url doesn't include basket, return
       // Else proceed with adding the product to the basket
       if (pageUrl.includes("basket") || cartElement || buyButton) {
-        return { success: true, product: url.split("/")[4] ?? url };
+        return { success: true, product: splittedUrl[4] ?? url };
       }
 
       // Wait for buy button to appear on the site - 5000ms till timeout
@@ -150,14 +153,64 @@ export class ProshopScraper extends BaseScraper {
       buyButton = await this.page.$("a[href='/Basket/CheckOut']");
 
       if (pageUrl.includes("basket") || cartElement || buyButton) {
-        return { success: true, product: url.split("/")[4] ?? url };
+        return { success: true, product: splittedUrl[4] ?? url };
       } else {
-        return { success: false, product: url.split("/")[4] ?? url };
+        return { success: false, product: splittedUrl[4] ?? url };
       }
     } catch (err) {
       console.log("Something went wrong trying to add the product to the cart: ", err)
 
-      return { success: false, product: url.split("/")[4] ?? url };
+      return { success: false, product: splittedUrl[4] ?? url };
+    }
+  }
+
+  // TODO: maybe create add to cart method since it's being repeated in multiple places
+  public async waitForProductAvailability(startTime: number, url: string): Promise<{ success: boolean, product: string }> {
+    let isAvailable = false;
+    const splittedUrl = url.split("/");
+
+    while (getLocalTimeInUTCTimestamp() < startTime) {
+      // Throttle checks to see if the time has come by 100ms
+      await new Promise<void>((res) => setTimeout(res, 100));
+    }
+
+    try {
+      await this.page.goto(url, { waitUntil: "domcontentloaded" });
+
+      while (!isAvailable) {
+        await this.page.reload({ waitUntil: "domcontentloaded" });
+  
+        try {
+          await this.page.waitForSelector("form#addToCart_BtnForm button[data-form-action='addToBasket']", { timeout: 200 });
+  
+          isAvailable = true;
+        } catch (err) {
+          console.log("No buy button on page");
+  
+          // Wait until refreshing the page
+          await new Promise<void>((res) => setTimeout(res, 5000));
+        }
+      }
+  
+      // Click the buy button
+      await this.page.click("form#addToCart_BtnForm button[data-form-action='addToBasket']");
+  
+      // Navigation event happens to /basket page after clicking the buy button so wait for it to finish
+      await this.page.waitForNavigation({ waitUntil: "networkidle2" });
+  
+      // Check to see if the page is the shopping cart, which indicates that the product has been added to the cart
+      // and hopefully reserved
+      const pageUrl = this.page.url().toLowerCase();
+      const cartElement = await this.page.$(("#CommerceBasketApp"));
+      const buyButton = await this.page.$("a[href='/Basket/CheckOut']");
+  
+      if (pageUrl.includes("basket") || cartElement || buyButton) {
+        return { success: true, product: splittedUrl[4] ?? url };
+      } else {
+        return { success: false, product: splittedUrl[4] ?? url };
+      }
+    } catch (err) {
+      return { success: false, product: splittedUrl[4] ?? url };
     }
   }
 }

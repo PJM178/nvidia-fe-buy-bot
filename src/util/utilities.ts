@@ -70,3 +70,20 @@ export async function envValues() {
 
   await handleEnvLines();
 }
+
+export function getLocalTimeInUTCTimestamp() {
+  const now = new Date();
+  const timezoneOffset = now.getTimezoneOffset();
+
+  if (timezoneOffset < 0) {
+    const offsetInMS = Math.abs(timezoneOffset) * 60 * 1000;
+
+    return now.getTime() + offsetInMS;
+  } else if (timezoneOffset > 0) {
+    const offsetInMS = Math.abs(timezoneOffset) * 60 * 1000;
+
+    return now.getTime() - offsetInMS;
+  } else {
+    return now.getTime();
+  }
+}
