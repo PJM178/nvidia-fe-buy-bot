@@ -3,10 +3,12 @@ import puppeteer, { Browser, GoToOptions, LaunchOptions, Page } from 'puppeteer'
 export abstract class BaseScraper {
   protected browser: Browser;
   protected page: Page;
+  protected chromeVersionList: string[];
 
   public constructor(browser: Browser, page: Page) {
     this.browser = browser;
     this.page = page;
+    this.chromeVersionList = ["135.0.7049.95", "91.0.4472.124", "135.0.7049.41"];
   }
 
   /**
@@ -34,7 +36,7 @@ export abstract class BaseScraper {
       const page = await browser.newPage();
 
       // Set useragent since it's possible that if these are missing, the page won't load in headless mode
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36 Chrome/91.0.4472.124');
 
       // Set viewport to ensure that certain elements appear because of media queries
       await page.setViewport({

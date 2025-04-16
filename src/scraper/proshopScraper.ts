@@ -105,7 +105,15 @@ export class ProshopScraper extends BaseScraper {
     }
   }
 
-  public async clickElementToAddToCart(selector: string, url: string) {
+  /**
+  * Helper method to add products to basket based on the selector.
+  *
+  * @param selector - Selector for button which adds the product to the cart.
+  * @param url - Product page URL.
+  * 
+  * @returns Promise<{ succcess: boolean, product: string }>
+  */
+  private async clickElementToAddToCart(selector: string, url: string) {
     const splittedUrl = url.split("/");
 
     // Click the buy button
@@ -162,24 +170,6 @@ export class ProshopScraper extends BaseScraper {
       // Wait for buy button to appear on the site - 5000ms till timeout
       await this.page.waitForSelector("form#addToCart_BtnForm button[data-form-action='addToBasket']", { timeout: 5000 });
 
-      // // Click the buy button
-      // await this.page.click("form#addToCart_BtnForm button[data-form-action='addToBasket']");
-
-      // // Navigation event happens to /basket page after clicking the buy button so wait for it to finish
-      // await this.page.waitForNavigation({ waitUntil: "networkidle2" });
-
-      // // Check to see if the page is the shopping cart, which indicates that the product has been added to the cart
-      // // and hopefully reserved
-      // pageUrl = this.page.url().toLowerCase();
-      // cartElement = await this.page.$(("#CommerceBasketApp"));
-      // buyButton = await this.page.$("a[href='/Basket/CheckOut']");
-
-      // if (pageUrl.includes("basket") || cartElement || buyButton) {
-      //   return { success: true, product: splittedUrl[4] ?? url };
-      // } else {
-      //   return { success: false, product: splittedUrl[4] ?? url };
-      // }
-
       const addToCart = await this.clickElementToAddToCart(
         "form#addToCart_BtnForm button[data-form-action='addToBasket']",
         url
@@ -193,9 +183,12 @@ export class ProshopScraper extends BaseScraper {
     }
   }
 
-  // TODO: maybe create add to cart method since it's being repeated in multiple places
+
+
+  // TODO: detect whether cloudflare captcha is triggered and simulate mouse movement to check the checkbox
   public async waitForProductAvailability(startTime: number, url: string): Promise<{ success: boolean, product: string }> {
     let isAvailable = false;
+    let isCloudflare = false;
     const splittedUrl = url.split("/");
 
     while (getLocalTimeInUTCTimestamp() < startTime) {
@@ -207,17 +200,70 @@ export class ProshopScraper extends BaseScraper {
       await this.page.goto(url, { waitUntil: "domcontentloaded" });
 
       while (!isAvailable) {
+        if (isCloudflare) {
+          // Wait for anchor element to position the click
+          await this.page.waitForSelector(".h2.spacer-bottom", { visible: true });
+
+          // Select the element
+          const anchorElementHandle = await this.page.$(".h2.spacer-bottom");
+
+          // Get the bounding box
+          const anchorBoundingBox = await this.page.evaluate((el) => {
+            if (el) {
+              const rect = el.getBoundingClientRect();
+
+              return {
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+                top: rect.top,
+                left: rect.left,
+                bottom: rect.bottom,
+                right: rect.right,
+              };
+            }
+          }, anchorElementHandle);
+
+          const elMarginBottom = 32;
+          const inputMarginLeft = 16;
+          const inputHeight = 24;
+          const inputWidth = 24;
+          const inputContainerheight = 63;
+          const mouseX = (anchorBoundingBox?.left ?? 0) + inputMarginLeft + inputWidth / 2;
+          const mouseY = (anchorBoundingBox?.bottom ?? 0) + elMarginBottom + inputContainerheight / 2;
+          
+          await this.handleCloudflare({ x: mouseX, y: mouseY });
+          
+          isCloudflare = false;
+          // await new Promise((res) => setTimeout(res, 99999999));
+
+          // const cloudflareHandled = this.handleCloudflare();
+        };
+
         await this.page.reload({ waitUntil: "domcontentloaded" });
+
+        // Check network requests for cloudflare page
+        this.page.on("response", async (res) => {
+          const responseUrl = res.url();
+
+          if (responseUrl.toLowerCase().includes("cloudflare")) {
+            isCloudflare = true;
+            console.log("Cloudflare captcha detected");
+          }
+        });
+
+        this.page.setRequestInterception
 
         try {
           await this.page.waitForSelector("form#addToCart_BtnForm button[data-form-action='addToBasket']", { timeout: 200 });
 
           isAvailable = true;
         } catch (err) {
-          console.log("No buy button on page");
+          console.log("No buy button on page, time: ", new Date().toString());
 
-          // Wait until refreshing the page
-          await new Promise<void>((res) => setTimeout(res, 5000));
+          // Wait until refreshing the page, adding random delay to maybe fool some checks
+          await new Promise<void>((res) => setTimeout(res, 1000 + Math.random() * 2000));
         }
       }
 
@@ -230,5 +276,52 @@ export class ProshopScraper extends BaseScraper {
     } catch (err) {
       return { success: false, product: splittedUrl[4] ?? url };
     }
+  }
+
+  /**
+  * Detects and attemps to handle cloudflare captcha which can happen for certain product pages when refreshing them
+  * heavily.
+  * 
+  * @returns Promise<boolean>
+  */
+  private async handleCloudflare(coordinates: { x: number, y: number }): Promise<boolean> {
+    let inputPressed = false;
+    let shouldBreak = false;
+    let firstPress = false;
+
+    // Move and click mouse to where input checkmark is
+    await this.page.mouse.move(coordinates.x, coordinates.y);
+
+    this.page.on("response", async (res) => {
+      if (firstPress) {
+        const responseUrl = res.url();
+
+        if (inputPressed && responseUrl.toLowerCase().includes("proshop")) {
+          shouldBreak = true;
+          console.log(shouldBreak);
+        }
+
+        if (responseUrl.toLowerCase().includes("cloudflare")) {
+          inputPressed = true;
+        }
+      }
+    });
+
+    while (true) {
+      if (shouldBreak) break;
+
+      if (inputPressed) continue;
+
+      await this.page.mouse.down();
+      await new Promise((res) => setTimeout(res, Math.floor(Math.random() * 1000)));
+      await this.page.mouse.up();
+
+      firstPress = true;
+
+      await this.page.mouse.reset();
+      await this.page.mouse.move(coordinates.x, coordinates.y, { steps: Math.floor(Math.random() * 32) });
+    }
+
+    return true;
   }
 }

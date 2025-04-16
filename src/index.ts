@@ -166,10 +166,10 @@ async function testProductAvailabilityTime() {
     const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
 
     if (isLoggedIn) {
-      const startTime = new Date().setUTCHours(14, 0, 0, 0);
+      const startTime = new Date().setUTCHours(0, 0, 0, 0);
 
-      // const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeytoenohjaimet/ZOTAC-GeForce-RTX-5070-Ti-Solid-SFF-16GB-GDDR7-RAM-Naeytoenohjaimet/3359722");
-      const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900");
+      const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeytoenohjaimet/ZOTAC-GeForce-RTX-5070-Ti-Solid-SFF-16GB-GDDR7-RAM-Naeytoenohjaimet/3359722");
+      // const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900");
 
       // If the product is added to cart, open default system browser with shopping cart url for checkout and exit the program
       if (productAddedToCart.success) {
