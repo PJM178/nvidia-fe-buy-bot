@@ -1,4 +1,16 @@
-export type SkuData = Record<string, { displayName: string, productSKU: string }>;
+export interface SkuData {
+  "RTX 5090": SingleSkuData;
+  "RTX 5080": SingleSkuData;
+  "RTX 5070": SingleSkuData;
+}
+
+interface SingleSkuData {
+  displayName: string,
+  productTitle: string,
+  gpu: string,
+  productSKU: string,
+  updateAt: number | null;
+}
 
 export interface SKUResponseData {
   success: boolean;
@@ -10,3 +22,11 @@ export interface SKUResponseData {
     fe_sku: string,
   }[];
 }
+
+interface NvidiaStoreListingRecord {
+  gpu: keyof SkuData;
+  productSKU: string;
+  [key: string]: unknown;
+}
+
+export type NvidiaStoreListingResponse = NvidiaStoreListingRecord[];

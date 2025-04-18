@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import dotenv from "dotenv";
-import { SkuData, SKUResponseData } from "./types/sku";
+import { NvidiaStoreListingResponse, SkuData, SKUResponseData } from "./types/sku";
 import { ProshopScraper } from "./scraper";
 import { exec } from 'child_process';
 import { queryUser, envValues, getLocalTimeInUTCTimestamp } from "./util/utilities";
@@ -14,7 +14,7 @@ const proshopRealname = process.env.PROSHOP_REALNAME || "test-realname";
 
 const dataPath = path.join(__dirname, "data", "skuData.json");
 
-async function readData(): Promise<SkuData | undefined> {
+async function readData(): Promise<SkuData | null> {
   try {
     const data = await fs.readFile(dataPath, "utf-8");
 
@@ -23,36 +23,54 @@ async function readData(): Promise<SkuData | undefined> {
     return parsedData;
   } catch (err) {
     console.error("Error reading or parsing the file: ", err);
-  }
-};
 
-async function updateSKUData() {
-  try {
-    const res = await fetch(`https://api.nvidia.partners/edge/product/search?page=1&limit=12&locale=fi-fi&manufacturer=NVIDIA&manufacturer_filter=NVIDIA~2&category=GPU`);
-
-    const data = await res.json();
-
-
-
-    console.log(data.searchedProducts.productDetails);
-    console.log(res);
-  } catch (err) {
-    console.log(err);
+    return null;
   }
 };
 
 async function checkSKUData() {
+  const updatedSkus = [];
+
   try {
     const res = await fetch(`https://api.nvidia.partners/edge/product/search?page=1&limit=12&locale=fi-fi&manufacturer=NVIDIA&manufacturer_filter=NVIDIA~2&category=GPU`);
 
     const data = await res.json();
 
-    // console.log(data.searchedProducts.productDetails);
-    // console.log(res);
+    if (res.status === 200) {
+      const apiProductDetailsList = data.searchedProducts.productDetails as NvidiaStoreListingResponse;
+
+      const localSkuData = await readData();
+
+      if (localSkuData) {
+        for (let i = 0; i < apiProductDetailsList.length; i++) {
+          const record = apiProductDetailsList[i];
+          const currentLocalSKUData = localSkuData[record.gpu];
+          const recordSKUName = record.productSKU;
+
+          if (recordSKUName !== currentLocalSKUData.productSKU) {
+            const modifiedData = { ...localSkuData };
+            modifiedData[record.gpu].productSKU = recordSKUName;
+            modifiedData[record.gpu].updateAt = new Date().getTime();
+
+            await fs.writeFile(dataPath, JSON.stringify(modifiedData, null, 2), "utf-8");
+
+            updatedSkus.push(record.gpu);
+          }
+        }
+      }
+    }
   } catch (err) {
     console.log(err);
   }
+
+  if (updatedSkus.length === 0) {
+    console.log("Local SKU data up to date");
+  } else {
+    console.log("Updated the SKU names of the following gpus: " + updatedSkus.join(", "));
+  }
 };
+
+checkSKUData();
 
 async function checkSKUStock(sku: string) {
   try {
@@ -80,23 +98,21 @@ async function checkApi() {
   }
 };
 
-checkSKUData();
+// async function run() {
+//   const data = await readData();
 
-async function run() {
-  const data = await readData();
+//   if (data && "RTX 5080" in data) {
+//     const skuResponseData = await checkSKUStock(data["RTX 5080"]);
 
-  if (data && "RTX 5080" in data) {
-    const skuResponseData = await checkSKUStock(data["RTX 5080"].productSKU);
-
-    if (skuResponseData?.success && skuResponseData?.listMap.length > 0) {
-      console.log(skuResponseData.listMap[0].fe_sku);
-    } else if (skuResponseData?.success) {
-      console.log("Api response successful but the sku data is missing");
-    } else {
-      console.log("Something went wrong making the api call");
-    }
-  }
-}
+//     if (skuResponseData?.success && skuResponseData?.listMap.length > 0) {
+//       console.log(skuResponseData.listMap[0].fe_sku);
+//     } else if (skuResponseData?.success) {
+//       console.log("Api response successful but the sku data is missing");
+//     } else {
+//       console.log("Something went wrong making the api call");
+//     }
+//   }
+// }
 
 async function initializeSetup(): Promise<{ headless: boolean }> {
   const runInHeadless = await queryUser("Run chrome in headless mode?\n");
@@ -190,7 +206,7 @@ async function testProductAvailabilityTime() {
   }
 }
 
-testProductAvailabilityTime();
+// testProductAvailabilityTime();
 
 // Keep the program running;
 // setInterval(() => {

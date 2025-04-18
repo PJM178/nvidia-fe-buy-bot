@@ -249,6 +249,7 @@ export class ProshopScraper extends BaseScraper {
 
           if (responseUrl.toLowerCase().includes("cloudflare")) {
             isCloudflare = true;
+            console.log(isCloudflare);
             console.log("Cloudflare captcha detected");
           }
         });
