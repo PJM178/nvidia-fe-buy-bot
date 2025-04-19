@@ -4,7 +4,7 @@ export interface SkuData {
   "RTX 5070": SingleSkuData;
 }
 
-interface SingleSkuData {
+export interface SingleSkuData {
   displayName: string,
   productTitle: string,
   gpu: string,

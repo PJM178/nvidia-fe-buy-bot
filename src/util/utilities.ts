@@ -30,14 +30,14 @@ export async function queryUser(query: string): Promise<boolean> {
 
     ask();
   });
-}
+};
 
 export async function envValues() {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
-  
+
   const envKeys = {
     "PROSHOP_USERNAME": "",
     "PROSHOP_PASSWORD": "",
@@ -49,7 +49,7 @@ export async function envValues() {
       rl.question(`Value for ${key}: `, (text) => {
         res(text);
       })
-    }); 
+    });
   };
 
   const handleEnvLines = async () => {
@@ -69,7 +69,7 @@ export async function envValues() {
   }
 
   await handleEnvLines();
-}
+};
 
 export function getLocalTimeInUTCTimestamp() {
   const now = new Date();
@@ -86,4 +86,15 @@ export function getLocalTimeInUTCTimestamp() {
   } else {
     return now.getTime();
   }
-}
+};
+
+/**
+* Helper function to add delay to calls.
+* 
+* @param ms Delay to wait in ms.
+* 
+* @returns Promise<void>
+*/
+export async function delay(ms: number) {
+  return new Promise((res) => setTimeout(res, ms));
+};
