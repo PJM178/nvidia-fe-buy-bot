@@ -7,7 +7,7 @@ export interface SkuData {
 export interface SingleSkuData {
   displayName: string,
   productTitle: string,
-  gpu: string,
+  gpu: keyof SkuData,
   productSKU: string,
   updateAt: number | null;
 }
@@ -16,7 +16,7 @@ export interface SKUResponseData {
   success: boolean;
   map: null;
   listMap: {
-    isActive: string,
+    is_active: string,
     product_url: string,
     price: string,
     fe_sku: string,

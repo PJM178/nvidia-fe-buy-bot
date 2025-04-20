@@ -8,14 +8,50 @@ import { queryUser, envValues, delay } from "./util/utilities";
 
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
+// const mockDataInStock = {
+//   success: true,
+//   map: null,
+//   listMap: [
+//     {
+//       is_active: 'true',
+//       product_url: "https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900",
+//       price: '1000000',
+//       fe_sku: 'PRO5080FESHOP_FI',
+//       locale: 'FI'
+//     }
+//   ]
+// };
+
+// const mockDataNotInStock = {
+//   success: true,
+//   map: null,
+//   listMap: [
+//     {
+//       is_active: 'false',
+//       product_url: '',
+//       price: '1000000',
+//       fe_sku: 'PRO5080FESHOP_FI',
+//       locale: 'FI'
+//     }
+//   ],
+// };
+
 const proshopUsername = process.env.PROSHOP_USERNAME || "test-username";
 const proshopPassword = process.env.PROSHOP_PASSWORD || "test-password";
 const proshopRealname = process.env.PROSHOP_REALNAME || "test-realname";
 
 const dataPath = path.join(__dirname, "data", "skuData.json");
 
+// For caching the local and possibly updated sku data
 const skuDataMap = new Map<keyof SkuData, SingleSkuData>();
 
+// Store sku api responses here
+const skuApiResponseData = new Map<keyof SkuData, SKUResponseData>();
+
+// Run the main program
+program();
+
+// Read the data and cache it into Map
 async function loadInitialDataToMap() {
   try {
     const localSkuData = await readData();
@@ -36,6 +72,7 @@ async function loadInitialDataToMap() {
   }
 };
 
+// Read the data from the .json file
 async function readData(): Promise<SkuData | null> {
   try {
     const data = await fs.readFile(dataPath, "utf-8");
@@ -50,32 +87,51 @@ async function readData(): Promise<SkuData | null> {
   }
 };
 
-async function updateLocalSkuData(data: Map<keyof SkuData, SingleSkuData>) {
+// Update the .json file data
+async function updateLocalSkuData(data: Map<keyof SkuData, SingleSkuData>, gpu: string) {
   const objectToWrite = Object.fromEntries(data);
+
+  console.log(`Updated the local ${gpu} sku data with the data from Nvidia store api - ` + new Date().toString());
 
   await fs.writeFile(dataPath, JSON.stringify(objectToWrite, null, 2), "utf-8");
 }
 
+// The main program
 async function program() {
+  // Load the data
   const isDataLoaded = await loadInitialDataToMap();
 
   if (!isDataLoaded) {
     process.exit(1);
   }
 
-  checkAndUpdateSKUData();
+  // Setup values and create .env variables
+  const setupValues = await initializeSetup();
 
-  while (true) {
-    await new Promise<void>((res) => setTimeout(() => {
-      console.log("2000");
-      res();
-    }, 2000));
+  // Create the scraper
+  const proshopScraper = await ProshopScraper.create({ ...setupValues }, { waitUntil: "domcontentloaded" }, "https://www.proshop.fi");
+
+  if (proshopScraper) {
+    // Run the first contact method to get rid of potentially blocking stuff
+    await proshopScraper.firstContact();
+
+    // Login to the site
+    const isLoggedIn = await proshopScraper.login(proshopUsername, proshopPassword, proshopRealname);
+
+    if (isLoggedIn) {
+      // Periodically poll the nvidia store api to update local sku data
+      pollNvidiaStoreApi(20000);
+
+      // Poll the individual sku api with the each sku in the data
+      pollSkuApi(5000, proshopScraper);
+    }
   }
+
+
 };
 
-program();
-
-async function checkAndUpdateSKUData() {
+// Polls the Nvidia store api periodically based on the updateDelay parameter
+async function pollNvidiaStoreApi(updateDelay: number) {
   while (true) {
     try {
       const res = await fetch(`https://api.nvidia.partners/edge/product/search?page=1&limit=12&locale=fi-fi&manufacturer=NVIDIA&manufacturer_filter=NVIDIA~2&category=GPU`);
@@ -96,9 +152,11 @@ async function checkAndUpdateSKUData() {
               currentLocalSKUData.updateAt = new Date().getTime();
 
               skuDataMap.set(record.gpu, currentLocalSKUData);
-            
+
               // Update the local data with the updated data
-              await updateLocalSkuData(skuDataMap);
+              await updateLocalSkuData(skuDataMap, record.gpu);
+            } else {
+              console.log(record.gpu + " local sku data up to date - " + new Date().toString());
             }
           }
         }
@@ -107,54 +165,73 @@ async function checkAndUpdateSKUData() {
       console.log("Something went wrong making a call to Nvidia store api: ", err);
     }
 
-    // Make the call every 20 seconds
-    await delay(5000);
+    // Delay the calls based on the paremeter
+    await delay(updateDelay);
   }
 };
 
-// checkAndUpdateSKUData();
+// Polls the Nvidia sku api endpoints periodically based on the updateDelay parameter
+async function pollSkuApi(updateDelay: number, proshopScraper: ProshopScraper) {
+  while (true) {
+    // Make a call to sku api for each productSku
+    const promises = Array.from(skuDataMap.values()).map((sku) =>
+      checkSKUStock(sku.productSKU).then(async (res) => {
+        // Process each result as soon as it resolves
+        if (res) {
+          if (res.success && res.listMap[0].is_active === "true" && res.listMap[0].product_url.length > 0) {
+            console.log(sku.gpu + " is in stock");
+            // Add product to basket based on the url - networkidle0 to make sure there is no network requests going on after loading
+            const productAddedToCart = await proshopScraper.addProductToCart(res.listMap[0].product_url, { waitUntil: "networkidle0" });
+
+            // If the product is added to cart, open default system browser with shopping cart url for checkout and exit the program
+            if (productAddedToCart.success) {
+              console.log("Added to cart ", productAddedToCart.product);
+
+              // Open default browser with proshop cart link in order to checkout
+              exec('start https://www.proshop.fi/Basket', (err: any, stdout: any, stderr: any) => {
+                if (err) {
+                  console.error('Error opening browser:', err);
+                  return;
+                }
+                console.log('Browser opened');
+              });
+            } else {
+              console.log("Could not add to cart, opening browser with the product url");
+
+              // Open default browser with the product url
+              exec(`start ${res.listMap[0].product_url}`, (err: any, stdout: any, stderr: any) => {
+                if (err) {
+                  console.error('Error opening browser:', err);
+                  return;
+                }
+                console.log('Browser opened');
+              });
+            }
+          } else {
+            console.log(sku.gpu + " not in stock - " + new Date().toString());
+          }
+        }
+      }).catch((err) => {
+        console.error(`Error checking stock for ${sku.productSKU}:`, err);
+      })
+    );
+
+    await delay(updateDelay);
+  }
+};
 
 async function checkSKUStock(sku: string) {
   try {
     const res = await fetch(`https://api.store.nvidia.com/partner/v1/feinventory?status=1&skus=${sku}&locale=fi-fi`);
 
     const data: SKUResponseData = await res.json();
-    console.log(data);
+
     return data;
   } catch (err) {
-    console.log(err);
+    // Throw the error and handle it elsewhere
+    throw err;
   }
 };
-
-async function checkApi() {
-  try {
-    const res = await fetch(`https://api.nvidia.partners/edge/product/search?page=1&limit=12&locale=fi-fi&manufacturer=NVIDIA&manufacturer_filter=NVIDIA~2&category=GPU`);
-
-    const data = await res.json();
-
-
-
-    console.log(data.searchedProducts.productDetails);
-  } catch (err) {
-    console.log(err);
-  }
-};
-
-// async function run() {
-//   const data = await readData();
-
-//   if (data && "RTX 5080" in data) {
-//     const skuResponseData = await checkSKUStock(data["RTX 5080"]);
-
-//     if (skuResponseData?.success && skuResponseData?.listMap.length > 0) {
-//       console.log(skuResponseData.listMap[0].fe_sku);
-//     } else if (skuResponseData?.success) {
-//       console.log("Api response successful but the sku data is missing");
-//     } else {
-//       console.log("Something went wrong making the api call");
-//     }
-//   }
-// }
 
 async function initializeSetup(): Promise<{ headless: boolean }> {
   const runInHeadless = await queryUser("Run chrome in headless mode?\n");
@@ -166,103 +243,4 @@ async function initializeSetup(): Promise<{ headless: boolean }> {
   }
 
   return { headless: runInHeadless };
-}
-
-async function testPuppeteer() {
-  // Setup values and create .env variables
-  const setupValues = await initializeSetup();
-
-  // Create the scraper
-  const proshopSraper = await ProshopScraper.create({ ...setupValues }, { waitUntil: "domcontentloaded" }, "https://www.proshop.fi");
-
-  if (proshopSraper) {
-    // Run the first contact method to get rid of potentially blocking stuff
-    await proshopSraper.firstContact();
-
-    // Login to the site
-    const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
-
-    if (isLoggedIn) {
-
-      // TODO: rename this whole function, and start the api call loops here and call the addProductToCart method from them
-      // Add product to basket based on the url - networkidle0 to make sure there is no network requests going on after loading
-      const productAddedToCart = await proshopSraper.addProductToCart("https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900", { waitUntil: "networkidle0" });
-
-      // If the product is added to cart, open default system browser with shopping cart url for checkout and exit the program
-      if (productAddedToCart.success) {
-        console.log("Added to cart ", productAddedToCart.product);
-
-        // Open default browser with proshop cart link in order to checkout
-        exec('start https://www.proshop.fi/Basket', (err: any, stdout: any, stderr: any) => {
-          if (err) {
-            console.error('Error opening browser:', err);
-            return;
-          }
-          console.log('Browser opened');
-        });
-      } else {
-        console.log("Could not add to cart, opening browser with the product url");
-
-        // Open default browser with the product url
-        // TODO: Add url here when rest of the program is done
-        exec('start https://www.proshop.fi/Basket', (err: any, stdout: any, stderr: any) => {
-          if (err) {
-            console.error('Error opening browser:', err);
-            return;
-          }
-          console.log('Browser opened');
-        });
-      }
-    }
-  }
 };
-
-// First run
-// run();
-
-// checkApi();
-
-// testPuppeteer();
-
-async function testProductAvailabilityTime() {
-  const proshopSraper = await ProshopScraper.create({ headless: false }, { waitUntil: "domcontentloaded" }, "https://www.proshop.fi");
-
-  if (proshopSraper) {
-    // Run the first contact method to get rid of potentially blocking stuff
-    await proshopSraper.firstContact();
-
-    // Login to the site
-    const isLoggedIn = await proshopSraper.login(proshopUsername, proshopPassword, proshopRealname);
-
-    if (isLoggedIn) {
-      const startTime = new Date().setUTCHours(0, 0, 0, 0);
-
-      const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeytoenohjaimet/ZOTAC-GeForce-RTX-5070-Ti-Solid-SFF-16GB-GDDR7-RAM-Naeytoenohjaimet/3359722");
-      // const productAddedToCart = await proshopSraper.waitForProductAvailability(startTime, "https://www.proshop.fi/Naeyttoe/27-GIGABYTE-AORUS-FO27Q2-2560x1440-QHD-240Hz-QD-OLED-18W-USB-C/3281900");
-
-      // If the product is added to cart, open default system browser with shopping cart url for checkout and exit the program
-      if (productAddedToCart.success) {
-        console.log("added to cart", productAddedToCart.product);
-
-        // Open default browser with proshop cart link in order to checkout
-        exec('start https://www.proshop.fi/Basket', (err: any, stdout: any, stderr: any) => {
-          if (err) {
-            console.error('Error opening browser:', err);
-            return;
-          }
-          console.log('Browser opened');
-        });
-
-        return process.exit(1);
-      }
-    }
-  }
-}
-
-// testProductAvailabilityTime();
-
-// Keep the program running;
-// setInterval(() => {
-//   // checkApi();
-//   run();
-// }, 5000);
